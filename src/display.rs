@@ -69,10 +69,11 @@ fn parse_xrandr_output(output: &str) -> Result<Vec<Display>> {
         } else if let Some(ref mut display) = current {
             // Resolution mode lines are indented, e.g. "   1920x1080     60.00*+  50.00"
             if line.starts_with(' ') || line.starts_with('\t') {
-                if let Some(res) = parts.first() {
-                    if res.contains('x') {
+                match parts.first() {
+                    Some(res) if res.contains('x') => {
                         display.supported_resolutions.push(res.to_string());
                     }
+                    _ => {}
                 }
             }
         }
@@ -102,6 +103,9 @@ fn validate_resolution(resolution: &str) -> Result<(u32, u32)> {
     let h = parts[1]
         .parse::<u32>()
         .map_err(|_| ArkcfgError::InvalidResolution(resolution.to_string()))?;
+    if w == 0 || h == 0 {
+        return Err(ArkcfgError::InvalidResolution(resolution.to_string()));
+    }
     Ok((w, h))
 }
 
@@ -132,10 +136,7 @@ pub fn cmd_list() -> Result<()> {
 pub fn cmd_current() -> Result<()> {
     let displays = get_displays()?;
     for d in &displays {
-        let res = d
-            .current_resolution
-            .as_deref()
-            .unwrap_or("(unknown)");
+        let res = d.current_resolution.as_deref().unwrap_or("(unknown)");
         let primary_tag = if d.is_primary { " [primary]" } else { "" };
         println!("{}{}: {}", d.name, primary_tag, res);
     }
@@ -165,11 +166,7 @@ pub fn cmd_set(resolution: &str, output: Option<&str>) -> Result<()> {
     };
 
     // Check the resolution is supported
-    if !target
-        .supported_resolutions
-        .iter()
-        .any(|r| r == resolution)
-    {
+    if !target.supported_resolutions.iter().any(|r| r == resolution) {
         return Err(ArkcfgError::UnsupportedResolution(resolution.to_string()));
     }
 
@@ -192,4 +189,45 @@ pub fn cmd_set(resolution: &str, output: Option<&str>) -> Result<()> {
 
     println!("Done.");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_connected_outputs_and_modes() {
+        let output = r#"Screen 0: minimum 8 x 8, current 2560 x 1080, maximum 32767 x 32767
+eDP-1 connected primary 1920x1080+0+0 (normal left inverted right x axis y axis) 309mm x 174mm
+   1920x1080     60.00*+  59.93
+   1280x720      60.00
+HDMI-1 disconnected (normal left inverted right x axis y axis)
+DP-1 connected 640x480+1920+0 (normal left inverted right x axis y axis) 0mm x 0mm
+   640x480       59.94*+
+"#;
+
+        let displays = parse_xrandr_output(output).unwrap();
+        assert_eq!(displays.len(), 2);
+        assert_eq!(displays[0].name, "eDP-1");
+        assert!(displays[0].is_primary);
+        assert_eq!(displays[0].current_resolution.as_deref(), Some("1920x1080"));
+        assert_eq!(displays[0].supported_resolutions, ["1920x1080", "1280x720"]);
+        assert_eq!(displays[1].name, "DP-1");
+        assert!(!displays[1].is_primary);
+    }
+
+    #[test]
+    fn rejects_output_without_connected_displays() {
+        let error =
+            parse_xrandr_output("Screen 0: minimum 8 x 8\nHDMI-1 disconnected\n").unwrap_err();
+        assert!(matches!(error, ArkcfgError::NoDisplaysFound));
+    }
+
+    #[test]
+    fn resolution_dimensions_must_be_positive() {
+        assert_eq!(validate_resolution("1920x1080").unwrap(), (1920, 1080));
+        assert!(validate_resolution("0x1080").is_err());
+        assert!(validate_resolution("1920x0").is_err());
+        assert!(validate_resolution("1920x1080x60").is_err());
+    }
 }
