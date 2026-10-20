@@ -4,7 +4,7 @@ use crate::errors::{ArkcfgError, Result};
 
 /// Runs fastfetch if available, falls back to neofetch, then to uname.
 pub fn cmd_sysinfo() -> Result<()> {
-    // Try fastfetch first (ArkanaOS ships it), then fall back to neofetch.
+    // Try fastfetch first (arkanaOS ships it), then fall back to neofetch.
     for command in ["fastfetch", "neofetch"] {
         match Command::new(command).status() {
             Ok(status) if status.success() => return Ok(()),
