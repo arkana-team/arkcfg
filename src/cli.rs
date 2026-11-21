@@ -4,7 +4,9 @@ use clap::{Parser, Subcommand};
 #[command(
     name = "arkcfg",
     author = "arkanaOS Team",
-    version = "0.1.0",
+    // Take the version from Cargo.toml so it cannot drift from the package
+    // version (it previously appeared in Cargo.toml, here, and Cargo.lock).
+    version,
     about = "System configuration tool for arkanaOS"
 )]
 pub struct Cli {
@@ -37,7 +39,8 @@ pub enum DisplayAction {
 
     /// Set the resolution of a display
     Set {
-        /// Resolution in WIDTHxHEIGHT format (e.g. 1920x1080)
+        /// Resolution in WIDTHxHEIGHT format (e.g. 1920x1080).
+        /// Custom mode names reported by `display list` are also accepted.
         resolution: String,
 
         /// Target display output (e.g. HDMI-1, VGA-1). Defaults to the primary display.
@@ -52,8 +55,16 @@ pub enum DisplayAction {
 #[derive(Subcommand, Debug)]
 pub enum PowerAction {
     /// Restart the system
-    Restart,
+    Restart {
+        /// Do not ask for confirmation (for scripts)
+        #[arg(short = 'y', long)]
+        no_confirm: bool,
+    },
 
     /// Power off the system
-    Poweroff,
+    Poweroff {
+        /// Do not ask for confirmation (for scripts)
+        #[arg(short = 'y', long)]
+        no_confirm: bool,
+    },
 }

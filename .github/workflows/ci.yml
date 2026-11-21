@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref (e.g. force-pushes to a PR branch).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # Fail on warnings so new lints cannot accumulate silently.
+  RUSTFLAGS: -D warnings
+
+jobs:
+  test:
+    name: fmt, clippy, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry and build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Check formatting
+        run: |
+          if ! cargo fmt --all --check; then
+            # Surface the exact rustfmt diff as an annotation so it can be read
+            # without downloading job logs.
+            # `set -e` inside `$(...)` + printf would abort the annotation on
+            # stray quotes, so read the diff into a variable without quotes.
+            diff=$(cargo fmt --all -- --check 2>&1 | head -80)
+            escaped=$(printf '%s' "$diff" | awk '{ gsub(/%/, "%25"); gsub(/\r/, "%0D"); printf "%s%%0A", $0 }')
+            echo "::error title=rustfmt diff::$escaped"
+            exit 1
+          fi
+
+      - name: Clippy (deny warnings)
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+      - name: Build
+        run: cargo build --locked --release
+
+      - name: Test
+        run: cargo test --locked
+
+  # arkanaOS builds this crate with `cargo build --locked --release` from an
+  # unpinned main tarball. If Cargo.toml and Cargo.lock disagree, every image
+  # build breaks, so check the lockfile is in sync on a second toolchain too.
+  msrv-lock:
+    name: lockfile is in sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Verify Cargo.lock matches Cargo.toml
+        run: cargo metadata --locked --format-version 1 > /dev/null
