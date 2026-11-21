@@ -176,20 +176,36 @@ fn parse_xrandr_output(output: &str) -> Result<Vec<Display>> {
     Ok(displays)
 }
 
-/// Validates a resolution string of the form WIDTHxHEIGHT, returning the
-/// dimensions as `(width, height)`.
+/// Validates a mode name beginning with WIDTHxHEIGHT, returning the dimensions.
+/// Xrandr custom modes may append a suffix such as `_60.00` or `i`; the caller
+/// checks the full name against the modes reported for the selected display.
 fn validate_resolution(resolution: &str) -> Result<(u32, u32)> {
     let invalid = || ArkcfgError::InvalidResolution(resolution.to_string());
 
-    let (width, height) = resolution.split_once('x').ok_or_else(invalid)?;
+    let (width, raw_height) = resolution.split_once('x').ok_or_else(invalid)?;
     // `u32::from_str` accepts a leading '+' or '-' and surrounding digits only,
     // so "+1920" would otherwise be accepted as 1920. Reject any sign so the
     // error message stays accurate.
-    if width.starts_with(['+', '-']) || height.starts_with(['+', '-']) {
+    if width.starts_with(['+', '-']) || raw_height.starts_with(['+', '-']) {
         return Err(invalid());
     }
     let width = width.parse::<u32>().map_err(|_| invalid())?;
-    let height = height.parse::<u32>().map_err(|_| invalid())?;
+    let height_len = raw_height
+        .chars()
+        .take_while(|ch| ch.is_ascii_digit())
+        .map(char::len_utf8)
+        .sum::<usize>();
+    if height_len == 0 {
+        return Err(invalid());
+    }
+    let (height_digits, suffix) = raw_height.split_at(height_len);
+    // A second `x` is malformed (`1920x1080x60`), while other suffixes are
+    // allowed because custom mode names are defined by Xrandr and are checked
+    // against the selected display's reported modes below.
+    if suffix.starts_with('x') || suffix.starts_with('.') {
+        return Err(invalid());
+    }
+    let height = height_digits.parse::<u32>().map_err(|_| invalid())?;
     if width == 0 || height == 0 {
         return Err(invalid());
     }
