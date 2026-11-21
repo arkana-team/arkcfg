@@ -5,14 +5,18 @@ use crate::errors::{ArkcfgError, Result};
 
 /// Restarts the system via systemctl, then falls back to reboot(8).
 pub fn cmd_restart(no_confirm: bool) -> Result<()> {
-    confirm_action("Restart", no_confirm)?;
+    if !confirm_action("Restart", no_confirm)? {
+        return Ok(());
+    }
     println!("Restarting system...");
     power_off_or_restart(&["systemctl", "reboot"], &["reboot"])
 }
 
 /// Powers off the system via systemctl, then falls back to poweroff(8).
 pub fn cmd_poweroff(no_confirm: bool) -> Result<()> {
-    confirm_action("Power off", no_confirm)?;
+    if !confirm_action("Power off", no_confirm)? {
+        return Ok(());
+    }
     println!("Powering off system...");
     power_off_or_restart(&["systemctl", "poweroff"], &["poweroff"])
 }
@@ -58,9 +62,9 @@ fn attempt_power_cmd(args: &[&str]) -> Result<()> {
 /// `arkcfg power` is reachable from a terminal by anyone at the keyboard, so a
 /// typo (`arkcfg power restart`) would otherwise reboot the machine with no way
 /// back. `--no-confirm` exists for scripts and the default is "no".
-fn confirm_action(action: &str, no_confirm: bool) -> Result<()> {
+fn confirm_action(action: &str, no_confirm: bool) -> Result<bool> {
     if no_confirm {
-        return Ok(());
+        return Ok(true);
     }
 
     print!("{} the system? [y/N] ", action);
@@ -70,11 +74,11 @@ fn confirm_action(action: &str, no_confirm: bool) -> Result<()> {
     io::stdin().read_line(&mut answer)?;
 
     if matches!(answer.trim().to_ascii_lowercase().as_str(), "y" | "yes") {
-        Ok(())
+        Ok(true)
     } else {
         // Cancelling is a deliberate choice, not a failure; note it on stderr and
         // exit successfully so scripts that check the status are not misled.
         eprintln!("{} cancelled.", action.to_lowercase());
-        Ok(())
+        Ok(false)
     }
 }
