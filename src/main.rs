@@ -22,8 +22,8 @@ fn run() -> errors::Result<()> {
         },
         Commands::Sysinfo => sysinfo::cmd_sysinfo()?,
         Commands::Power { action } => match action {
-            PowerAction::Restart => power::cmd_restart()?,
-            PowerAction::Poweroff => power::cmd_poweroff()?,
+            PowerAction::Restart { no_confirm } => power::cmd_restart(no_confirm)?,
+            PowerAction::Poweroff { no_confirm } => power::cmd_poweroff(no_confirm)?,
         },
     }
 
@@ -31,9 +31,17 @@ fn run() -> errors::Result<()> {
 }
 
 fn main() {
-    // Match arkpkg's clean panic hook
+    // `PanicHookInfo`'s Display already starts with "panicked at <loc>:", so
+    // formatting it as "Unexpected internal error: {}" duplicated that prefix and
+    // hid the location. Print it as-is instead.
+    //
+    // Replacing the default hook also disables its backtrace printing, so print
+    // a backtrace ourselves when RUST_BACKTRACE asks for one.
     std::panic::set_hook(Box::new(|info| {
-        eprintln!("Unexpected internal error: {}", info);
+        eprintln!("{}", info);
+        if std::env::var("RUST_BACKTRACE").is_ok_and(|v| v != "0") {
+            eprintln!("{}", std::backtrace::Backtrace::force_capture());
+        }
     }));
 
     if let Err(err) = run() {
