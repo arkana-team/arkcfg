@@ -43,8 +43,10 @@ jobs:
           if ! cargo fmt --all --check; then
             # Surface the exact rustfmt diff as an annotation so it can be read
             # without downloading job logs.
-            diff=$(cargo fmt --all -- --check 2>&1 | head -60)
-            escaped=$(printf '%s' "$diff" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/\n/%0A/g')
+            # `set -e` inside `$(...)` + printf would abort the annotation on
+            # stray quotes, so read the diff into a variable without quotes.
+            diff=$(cargo fmt --all -- --check 2>&1 | head -80)
+            escaped=$(printf '%s' "$diff" | awk '{ gsub(/%/, "%25"); gsub(/\r/, "%0D"); printf "%s%%0A", $0 }')
             echo "::error title=rustfmt diff::$escaped"
             exit 1
           fi
