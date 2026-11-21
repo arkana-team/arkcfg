@@ -39,7 +39,15 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-
 
       - name: Check formatting
-        run: cargo fmt --all --check
+        run: |
+          if ! cargo fmt --all --check; then
+            # Surface the exact rustfmt diff as an annotation so it can be read
+            # without downloading job logs.
+            diff=$(cargo fmt --all -- --check 2>&1 | head -60)
+            escaped=$(printf '%s' "$diff" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/\n/%0A/g')
+            echo "::error title=rustfmt diff::$escaped"
+            exit 1
+          fi
 
       - name: Clippy (deny warnings)
         run: cargo clippy --all-targets --locked -- -D warnings
