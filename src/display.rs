@@ -182,6 +182,9 @@ fn parse_xrandr_output(output: &str) -> Result<Vec<Display>> {
 fn validate_resolution(resolution: &str) -> Result<(u32, u32)> {
     let invalid = || ArkcfgError::InvalidResolution(resolution.to_string());
 
+    if resolution.chars().any(char::is_whitespace) {
+        return Err(invalid());
+    }
     let (width, raw_height) = resolution.split_once('x').ok_or_else(invalid)?;
     // `u32::from_str` accepts a leading '+' or '-' and surrounding digits only,
     // so "+1920" would otherwise be accepted as 1920. Reject any sign so the
