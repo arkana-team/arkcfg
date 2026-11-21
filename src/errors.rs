@@ -20,7 +20,9 @@ pub enum ArkcfgError {
     #[error("Invalid resolution format '{0}'. Expected WIDTHxHEIGHT (e.g. 1920x1080)")]
     InvalidResolution(String),
 
-    #[error("Resolution '{resolution}' is not supported by display '{display}'. Supported modes: {supported}")]
+    #[error(
+        "Resolution '{resolution}' is not supported by display '{display}'. Supported modes: {supported}"
+    )]
     UnsupportedResolution {
         resolution: String,
         display: String,

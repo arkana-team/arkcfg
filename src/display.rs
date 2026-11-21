@@ -427,8 +427,7 @@ TV-1 unknown connection (normal left inverted right x axis y axis)
     #[test]
     fn header_without_active_mode_reports_unknown_current() {
         // Connected-but-mirrored/rotated outputs can omit the "+x+y" token.
-        let output =
-            "HDMI-1 connected (normal left inverted right x axis y axis)\n   1024x768      60.00 +\n";
+        let output = "HDMI-1 connected (normal left inverted right x axis y axis)\n   1024x768      60.00 +\n";
         let displays = parse_xrandr_output(output).unwrap();
         assert_eq!(displays[0].current_resolution, None);
         assert_eq!(displays[0].supported_resolutions, ["1024x768"]);
